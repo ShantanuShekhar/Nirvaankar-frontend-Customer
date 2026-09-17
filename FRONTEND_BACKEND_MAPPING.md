@@ -3,7 +3,8 @@
 Source of truth: `d:\Learning\Projects\Backend2\nirvaankar-backend`  
 Analyzed: Spring Boot modular monolith. Identity, catalog, cart, checkout, orders and simulated payments are implemented. SDUI/theme remain schema-only.
 
-Base URL: `{VITE_API_URL}` → default `http://localhost:8080`  
+<!-- Base URL: `{VITE_API_URL}` → default `http://localhost:8080`   -->
+Base URL: `{VITE_API_URL}` → default `http://3.109.158.178:8080` 
 API prefix: `/api/v1`
 
 ---
