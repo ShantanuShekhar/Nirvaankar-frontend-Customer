@@ -1,19 +1,20 @@
 import { DEVICE_UUID_KEY } from '@/config/defaults'
 import type { DevicePayload } from '@/api/types'
+import { generateUUID } from '@/utils/uuid'
 
 export function createIdempotencyKey(): string {
-  return crypto.randomUUID()
+  return generateUUID()
 }
 
 export function getOrCreateDeviceUuid(): string {
   try {
     const existing = localStorage.getItem(DEVICE_UUID_KEY)
     if (existing) return existing
-    const next = crypto.randomUUID()
+    const next = generateUUID()
     localStorage.setItem(DEVICE_UUID_KEY, next)
     return next
   } catch {
-    return crypto.randomUUID()
+    return generateUUID()
   }
 }
 

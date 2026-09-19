@@ -1,3 +1,4 @@
+import { generateUUID } from '@/utils/uuid'
 import { create } from 'zustand'
 
 export type ToastTone = 'neutral' | 'success' | 'warn' | 'danger'
@@ -19,7 +20,7 @@ type ToastState = {
 export const useToastStore = create<ToastState>((set, get) => ({
   items: [],
   push: (toast) => {
-    const id = toast.id ?? crypto.randomUUID()
+    const id = toast.id ?? generateUUID()
     set((s) => ({ items: [...s.items, { ...toast, id }] }))
     const duration = toast.durationMs ?? 3800
     if (duration > 0) {

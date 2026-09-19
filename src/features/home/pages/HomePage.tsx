@@ -1,9 +1,11 @@
-import { BACKEND_CAPABILITIES } from '@/api/endpoints/capabilities'
+﻿import { BACKEND_CAPABILITIES } from '@/api/endpoints/capabilities'
+import { configApi } from '@/api/endpoints/config'
 import { catalogApi, type CategoryNode, type ProductCard as ProductCardData } from '@/api/endpoints/commerce'
 import { CategoryCarousel } from '@/features/home/components/CategoryCarousel'
 import { BringNatureHome } from '@/features/home/components/BringNatureHome'
 import { ScreenRenderer } from '@/features/sdui/ScreenRenderer'
 import { APP_NAME, APP_TAGLINE, APP_SUPPORTING } from '@/config/defaults'
+import heroFallback from '@/assets/hero-fallback.svg'
 import { BotanicalParticles } from '@/shared/ui/BotanicalParticles'
 import { BrandMark } from '@/shared/ui/BrandMark'
 import { Button } from '@/shared/ui/Button'
@@ -15,6 +17,7 @@ import { SectionHeader } from '@/shared/ui/SectionHeader'
 import { catalogImageSrc } from '@/shared/ui/ProductImage'
 import { useQuery } from '@tanstack/react-query'
 import { HandHeart, Leaf, Recycle, Sprout } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
 const trustStrip = [
@@ -27,7 +30,7 @@ const trustStrip = [
 const whyCards = [
   {
     title: 'Thoughtfully Sustainable',
-    text: 'We curate goods chosen for kinder materials and mindful making — never greenwash for its own sake.',
+    text: 'We curate goods chosen for kinder materials and mindful making â€” never greenwash for its own sake.',
   },
   {
     title: 'Crafted by Artisans',
@@ -39,7 +42,7 @@ const whyCards = [
   },
   {
     title: 'Transparent Choices',
-    text: 'Materials, care and maker notes sit on the product page — not buried in fine print.',
+    text: 'Materials, care and maker notes sit on the product page â€” not buried in fine print.',
   },
 ]
 
@@ -90,6 +93,67 @@ function purposeLinks(products: ProductCardData[], roots: ReturnType<typeof flat
   }))
 }
 
+/** Bold + green highlight for key words in the existing tagline. */
+function HeroHeadline({ text }: { text: string }) {
+  const parts = text.split(/(\bHands\b|\bNature\b)/g)
+  return (
+    <h1 className="mt-4 max-w-xl font-display text-4xl leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-[3.5rem]">
+      {parts.map((part, i) =>
+        part === 'Hands' || part === 'Nature' ? (
+          <span key={`${part}-${i}`} className="font-semibold text-[#76D713]">
+            {part}
+          </span>
+        ) : (
+          <span key={`${part}-${i}`} className="font-semibold text-white">
+            {part}
+          </span>
+        ),
+      )}
+    </h1>
+  )
+}
+
+/**
+ * Hero media: API/S3 stream first, then bundled fallback. Never shows a broken image.
+ * GIFs stay animated via native <img>.
+ */
+function HeroMediaCard({ imageUrl }: { imageUrl: string | null | undefined }) {
+  const remote = catalogImageSrc(imageUrl)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => { setFailed(false) }, [remote])
+  const src = remote && !failed ? remote : heroFallback
+  const usedFallback = !remote || failed
+
+  return (
+    <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-[26rem] lg:max-w-none">
+      {/* Soft green glow base (reference stacked-card feel, brand green) */}
+      <div
+        aria-hidden
+        className="absolute -inset-x-4 bottom-2 top-10 rounded-[2rem] bg-[#109648]/35 blur-2xl sm:-inset-x-6"
+      />
+      <div
+        aria-hidden
+        className="absolute inset-x-3 top-6 h-[92%] rounded-[1.75rem] bg-gradient-to-br from-[#109648] via-[#1f3d2b] to-[#0f2419] opacity-90 shadow-[0_30px_80px_rgba(0,0,0,0.55)]"
+      />
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/15 bg-black/40 shadow-[0_24px_60px_rgba(0,0,0,0.45)] backdrop-blur-[2px]">
+        <div className="aspect-[4/5] w-full">
+          <img
+            key={src}
+            src={src}
+            alt={usedFallback ? 'Nature-inspired craft' : 'Featured handmade eco-friendly piece'}
+            className="h-full w-full object-cover"
+            fetchPriority="high"
+            decoding="async"
+            onError={() => {
+              if (!failed) setFailed(true)
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function HomePage() {
   if (BACKEND_CAPABILITIES.sdui) {
     return <ScreenRenderer screenKey="home" />
@@ -108,51 +172,66 @@ function MarketplaceHome() {
     queryFn: async () => (await catalogApi.products({ limit: 16 })).data,
     staleTime: 60_000,
   })
+  const storeConfig = useQuery({
+    queryKey: ['store-config'],
+    queryFn: async () => (await configApi.store()).data,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   const roots = flattenRoots(tree.data ?? [])
   const items = products.data?.items ?? []
   const featured = items.slice(0, 8)
   const arrivals = items.slice(8, 16)
-  const heroProduct = featured[0]
-  const heroSrc = catalogImageSrc(heroProduct?.imageUrl)
   const materials = uniqueMaterials(items)
   const purposes = purposeLinks(items, roots)
+  const heroImageUrl = storeConfig.isError ? null : storeConfig.data?.heroImageUrl
 
   return (
     <div>
-      <section className="relative overflow-hidden bg-[var(--color-forest-950)]">
-        {heroSrc ? (
-          <img
-            src={heroSrc}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-40 will-change-transform [transform:translateZ(0)] motion-safe:scale-105"
-            fetchPriority="high"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(107,148,112,0.35),transparent_55%),linear-gradient(135deg,#0f2419,#1f3d2b_55%,#4a3728)]" />
-        )}
-        <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(15,36,25,0.94)_10%,rgba(15,36,25,0.68)_52%,rgba(15,36,25,0.4)_100%)]" />
-        <div className="nv-container relative flex min-h-[86vh] flex-col justify-end pb-16 pt-28">
-          <div className="relative mb-8 w-fit nv-enter">
-            <BotanicalParticles />
-            <BrandMark inverted />
+      <section className="relative overflow-hidden bg-black">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(118,215,19,0.16),transparent_48%),radial-gradient(ellipse_at_bottom_left,rgba(16,150,72,0.12),transparent_42%)]"
+        />
+        <div className="nv-container relative grid min-h-[88vh] items-center gap-12 py-20 lg:grid-cols-2 lg:gap-16 lg:py-24">
+          <div className="relative z-10 max-w-xl">
+            <div className="relative mb-7 w-fit nv-enter">
+              <BotanicalParticles />
+              <BrandMark inverted />
+            </div>
+            <p className="nv-enter nv-enter-delay-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#76D713]">
+              {APP_NAME}
+            </p>
+            <div className="nv-enter nv-enter-delay-1">
+              <HeroHeadline text={APP_TAGLINE} />
+            </div>
+            <p className="nv-enter nv-enter-delay-2 mt-5 max-w-md text-base leading-relaxed text-white/75 sm:text-lg">
+              {APP_SUPPORTING}
+            </p>
+            <div className="nv-enter nv-enter-delay-3 mt-8 flex flex-wrap gap-3">
+              <Link to="/shop" className="nv-cta inline-flex">
+                <Button
+                  size="lg"
+                  className="rounded-2xl bg-[#109648] px-7 text-white hover:bg-[#0d7d3b]"
+                >
+                  Shop Now
+                </Button>
+              </Link>
+              <a href="#categories" className="nv-cta inline-flex">
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="rounded-2xl border-white/30 bg-transparent text-white hover:bg-white/10"
+                >
+                  Explore Categories
+                </Button>
+              </a>
+            </div>
           </div>
-          <p className="nv-enter nv-enter-delay-1 nv-label !text-[var(--color-cream-200)]">{APP_NAME}</p>
-          <h1 className="nv-enter nv-enter-delay-1 mt-3 max-w-3xl font-display text-5xl leading-[1.05] text-[var(--color-cream-50)] sm:text-6xl lg:text-7xl">
-            {APP_TAGLINE}
-          </h1>
-          <p className="nv-enter nv-enter-delay-2 mt-5 max-w-xl text-lg leading-relaxed text-[var(--color-cream-100)]">
-            {APP_SUPPORTING}
-          </p>
-          <div className="nv-enter nv-enter-delay-3 mt-8 flex flex-wrap gap-3">
-            <Link to="/shop" className="nv-cta inline-flex">
-              <Button size="lg">Shop Now</Button>
-            </Link>
-            <a href="#categories" className="nv-cta inline-flex">
-              <Button size="lg" variant="secondary" className="border-white/45 bg-white/10 text-white hover:bg-white/18">
-                Explore Categories
-              </Button>
-            </a>
+
+          <div className="nv-enter nv-enter-delay-2 relative z-10 lg:justify-self-end lg:w-full lg:max-w-[28rem]">
+            <HeroMediaCard imageUrl={heroImageUrl} />
           </div>
         </div>
       </section>
@@ -185,7 +264,7 @@ function MarketplaceHome() {
             <CategoryCarousel categories={roots} />
           ) : tree.isLoading ? (
             <div className="nv-container py-16">
-              <p className="text-sm text-[var(--color-fg-muted)]">Loading categories…</p>
+              <p className="text-sm text-[var(--color-fg-muted)]">Loading categoriesâ€¦</p>
             </div>
           ) : null}
         </section>
@@ -225,7 +304,7 @@ function MarketplaceHome() {
             <SectionHeader
               eyebrow="Shop by purpose"
               title="Find what fits your values"
-              description="Drawn from live product badges and categories — not invented filters."
+              description="Drawn from live product badges and categories â€” not invented filters."
             />
             <div className="mt-8 flex flex-wrap gap-3">
               {purposes.map((p) => (
@@ -278,14 +357,14 @@ function MarketplaceHome() {
                       to={`/search?q=${encodeURIComponent(item)}`}
                       className="mt-3 inline-block text-sm font-medium text-[var(--color-accent)]"
                     >
-                      Explore →
+                      Explore â†’
                     </Link>
                   </Card>
                 ))}
               </div>
             ) : (
               <p className="mt-6 text-sm text-[var(--color-fg-muted)]">
-                Browse the collection — material details appear on each product page when available.
+                Browse the collection â€” material details appear on each product page when available.
               </p>
             )}
           </div>
@@ -294,7 +373,7 @@ function MarketplaceHome() {
 
       <Reveal>
         <section className="nv-container py-16">
-          <SectionHeader eyebrow="Made with purpose" title="Material → Artisan → Craft → Product" />
+          <SectionHeader eyebrow="Made with purpose" title="Material â†’ Artisan â†’ Craft â†’ Product" />
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {purposeJourney.map((step, i) => (
               <article key={step.title} className="relative rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]">
@@ -332,14 +411,14 @@ function MarketplaceHome() {
                 A marketplace for conscious everyday choices.
               </h2>
               <p className="mt-4 max-w-lg leading-relaxed text-[var(--color-fg-muted)]">
-                Nirvaankar brings together handmade, natural and thoughtfully made goods — so every object you
+                Nirvaankar brings together handmade, natural and thoughtfully made goods â€” so every object you
                 bring home has a maker, a material, and a reason to exist.
               </p>
             </div>
             <div className="rounded-[var(--radius-lg)] bg-[var(--color-forest-900)] p-8 text-[var(--color-cream-50)]">
               <p className="font-display text-3xl italic">Stories travel with every object.</p>
               <p className="mt-4 text-sm text-[var(--color-cream-200)]">
-                Maker notes and materials sit first-class on the product page — never an afterthought.
+                Maker notes and materials sit first-class on the product page â€” never an afterthought.
               </p>
             </div>
           </div>
@@ -364,3 +443,4 @@ function MarketplaceHome() {
     </div>
   )
 }
+
